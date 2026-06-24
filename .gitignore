@@ -1,0 +1,6 @@
+# build artifacts from the examples
+*.o
+*.out
+/examples/resident-skeleton
+go.work
+go.work.sum
