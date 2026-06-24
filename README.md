@@ -74,5 +74,17 @@ server skeleton.
 
 Full details, field-by-field, in **[SPEC.md](SPEC.md)**.
 
+## Licensing & your doors
+
+This spec and its examples are **MIT-licensed** ([LICENSE](LICENSE)) — use them
+however you like, including in **commercial and closed-source** products. MIT
+explicitly permits use, modification, distribution, sublicensing, and **selling**.
+
+**Your door game is yours.** Building to this interface does not make your
+program a derivative of the spec, and nothing here restricts what you do with a
+door you write: sell it, keep it proprietary, license it your own way — your
+call. The MIT terms only ask that you keep the notice if you reuse *this repo's*
+text or example code.
+
 ---
 *Proudly Made in Nebraska. Go Big Red! 🌽 <https://xkcd.com/2347/>*
