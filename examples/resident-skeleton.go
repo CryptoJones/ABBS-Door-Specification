@@ -7,8 +7,8 @@
 //
 // This skeleton implements a trivial shared "lobby" with a name prompt, a
 // broadcast `say`, a `who` list, and `quit` — enough to show the shape. Grow it
-// into a real game; the production reference is Console Cowboy 2026 in the
-// AdmiralBBS repo (src/game/cowboy + src/cmd/cowboy).
+// into a real game; the production reference is Chrome Circuit Cowboys, its own
+// repo at https://github.com/CryptoJones/ChromeCircuitCowboys.
 //
 // Run it, then register a resident door pointing at its address:
 //

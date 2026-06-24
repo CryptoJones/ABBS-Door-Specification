@@ -29,7 +29,7 @@ language** and your door will run on any AdmiralBBS node.
 | I/O | stdin = keystrokes, stdout = screen | raw TCP/Unix-socket byte stream |
 | Caller context | `door32.sys` dropfile | none by default — your server prompts |
 | Examples | classic LORD-style games, utilities | MajorMUD-style MUDs |
-| Reference | the bundled `numguess` demo | [Console Cowboy 2026](https://github.com/CryptoJones/AdmiralBBS/blob/main/docs/CONSOLE_COWBOY.md) |
+| Reference | the bundled `numguess` demo | [Chrome Circuit Cowboys](https://github.com/CryptoJones/ChromeCircuitCowboys) |
 
 Pick **subprocess** for the simplest path (read a dropfile, talk over
 stdin/stdout). Pick **resident** when many callers must share one live world.

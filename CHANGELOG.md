@@ -14,12 +14,42 @@ and this repo follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   format identifier rather than silently redefining behavior.
 
 > The **repo release version** (below) and the **normative spec version**
-> (`SPEC.md`, currently **v1**) are tracked separately: doc and clarification
+> (`SPEC.md`, currently **v1.1**) are tracked separately: doc and clarification
 > releases move the repo version without changing the v1 door contract.
 
 ## [Unreleased]
 
 _Nothing yet._
+
+## [1.1.0] - 2026-06-24
+
+Backward-compatible additions derived from the live AdmiralBBS + Chrome Circuit
+Cowboys implementations. Normative spec: **v1.1** (a v1 door stays conformant).
+
+### Added
+- **Resident-door version handshake** (`SPEC.md` §2.2) — an optional OSC-framed
+  `ESC ] ABBS;version=<version> BEL` a door MAY send as its first bytes; the host
+  strips it, sanitizes it, and MAY show it (e.g. on the launch line). 1.5s
+  handshake timeout; never required.
+- **Resident-door input contract** (`SPEC.md` §2.3, normative) — what was
+  previously only "copy the reference" is now written down: telnet IAC (`0xFF`)
+  skip, non-blocking CR/LF partner-swallow, the `\b \b` backspace echo, the
+  `0x20`–`0x7E` printable range, and ignoring NUL.
+- **Managed-prompt redraw** (`SPEC.md` §2.4) and **graceful shutdown**
+  (`SPEC.md` §2.5) as recommended patterns for real-time multiplayer doors.
+- **Host defaults documented**: `TERM` (`ansi`/`dumb`) in §1.2, the
+  `<doors-data>/<slug>/node<N>/` + `/shared/` working-dir layout in §1.3, and
+  the AdmiralBBS `-door "name|network|address|minlevel"` startup flag + isolation
+  flags in §6.
+
+### Changed
+- `door32.sys` line 9 (minutes left) clarified as **advisory** — the BBS enforces
+  the real time budget, so a door can't extend a session by ignoring it
+  (`SPEC.md` §1.4).
+- Reference resident door updated from the bundled *Console Cowboy 2026* to
+  **Chrome Circuit Cowboys** (now its own repo) across `SPEC.md`, `README.md`,
+  and `examples/resident-skeleton.go`, reflecting the AdmiralBBS 2.0 door
+  carve-out.
 
 ## [1.0.0] - 2026-06-24
 
@@ -51,5 +81,6 @@ Initial public release of the door-game standard for
 - **`CONTRIBUTING.md`** — how to propose spec changes and example standards.
 - **MIT License** — commercial and closed-source doors are explicitly permitted.
 
-[Unreleased]: https://github.com/CryptoJones/ABBS-Door-Specification/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/CryptoJones/ABBS-Door-Specification/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.1.0
 [1.0.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.0.0
