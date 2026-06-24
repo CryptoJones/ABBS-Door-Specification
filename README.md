@@ -89,7 +89,8 @@ text or example code.
 ## Contributing
 
 Improvements to the spec, new example doors, and showcase submissions are
-welcome — see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+welcome — see **[CONTRIBUTING.md](CONTRIBUTING.md)**. Release history is in
+**[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 *Proudly Made in Nebraska. Go Big Red! 🌽 <https://xkcd.com/2347/>*
