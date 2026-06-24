@@ -86,5 +86,10 @@ door you write: sell it, keep it proprietary, license it your own way — your
 call. The MIT terms only ask that you keep the notice if you reuse *this repo's*
 text or example code.
 
+## Contributing
+
+Improvements to the spec, new example doors, and showcase submissions are
+welcome — see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
 ---
 *Proudly Made in Nebraska. Go Big Red! 🌽 <https://xkcd.com/2347/>*
