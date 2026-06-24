@@ -15,7 +15,7 @@ language** and your door will run on any AdmiralBBS node.
 > escape codes — that's it. There is no window, no mouse, no framebuffer, no HTTP.
 > A Windows `.exe` with a window, a web app, or anything that needs a desktop
 > **will not work** — it must be a console program that speaks stdin/stdout (or a
-> socket) and renders with ANSI text. See [SPEC.md §3](SPEC.md#3-terminal-conventions).
+> socket) and renders with ANSI text. See [SPEC.md §4](SPEC.md#4-terminal-conventions).
 
 > **Status:** v1. The normative contract is in **[SPEC.md](SPEC.md)**. Runnable
 > starting points are in **[examples/](examples/)**.
