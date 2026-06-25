@@ -41,6 +41,12 @@ Cowboys implementations. Normative spec: **v1.1** (a v1 door stays conformant).
   `<doors-data>/<slug>/node<N>/` + `/shared/` working-dir layout in §1.3, and
   the AdmiralBBS `-door "name|network|address|minlevel"` startup flag + isolation
   flags in §6.
+- **`examples/resident-skeleton.go` upgraded to a faithful reference** — it now
+  demonstrates the §2.2 handshake, the normative §2.3 input handling (telnet IAC
+  skip, non-blocking CR/LF partner-swallow, `\b \b` backspace echo, printable
+  range, NUL ignored), the §2.4 managed-prompt redraw, and §2.5 shutdown. The
+  previous version used a blocking CR/LF peek — the exact bug §2.3 now warns
+  against — and didn't echo input.
 
 ### Changed
 - `door32.sys` line 9 (minutes left) clarified as **advisory** — the BBS enforces

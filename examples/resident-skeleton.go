@@ -5,10 +5,20 @@
 // The BBS bridges each caller to THIS one process, so all connected callers
 // share whatever world you build here.
 //
-// This skeleton implements a trivial shared "lobby" with a name prompt, a
-// broadcast `say`, a `who` list, and `quit` — enough to show the shape. Grow it
-// into a real game; the production reference is Chrome Circuit Cowboys, its own
-// repo at https://github.com/CryptoJones/ChromeCircuitCowboys.
+// It implements a trivial shared "lobby" — a handle prompt, a broadcast `say`, a
+// `who` list, and `quit` — but does so the RIGHT way, so it is a faithful
+// reference for the parts of §2 that are easy to get wrong:
+//
+//   - §2.2 version handshake: advertise our version as the first bytes on connect.
+//   - §2.3 input handling (normative): raw, byte-at-a-time — telnet IAC skip,
+//     NON-blocking CR/LF partner swallow, backspace echo (\b \b), printable echo,
+//     NUL ignored.
+//   - §2.4 managed prompt: async output (another player's `say`, joins/leaves)
+//     redraws rather than clobbers what a caller is mid-typing.
+//   - §2.5 graceful shutdown: notify callers on SIGINT/SIGTERM before exiting.
+//
+// Grow it into a real game; the production reference is Chrome Circuit Cowboys,
+// its own repo at https://github.com/CryptoJones/ChromeCircuitCowboys.
 //
 // Run it, then register a resident door pointing at its address:
 //
@@ -22,32 +32,72 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 )
 
-type player struct {
-	name string
-	out  chan string
+// version is advertised to the BBS host via the §2.2 handshake.
+const version = "0.1.0"
+
+// clrLine wipes the current row: CR (return to column 0) + ESC[K (erase to end
+// of line). It is the heart of the managed-prompt redraw (§2.4).
+const clrLine = "\r\x1b[K"
+
+// conn is one caller. The in-progress input and prompt are mutex-guarded so that
+// async output (emit/setPrompt) can redraw them without racing the input echo.
+type conn struct {
+	nc  net.Conn
+	out chan string
+
+	mu     sync.Mutex
+	inLine []byte // the caller's un-submitted input
+	prompt string // the current prompt, redrawn around async output
+	name   string
+}
+
+// raw enqueues bytes for the writer goroutine. Non-blocking, so one stalled
+// caller can never wedge the server.
+func (c *conn) raw(s string) {
+	select {
+	case c.out <- s:
+	default:
+	}
+}
+
+// emit prints async content (chat, joins, leaves) WITHOUT clobbering what the
+// caller is mid-typing (§2.4): wipe the row, print the content, then redraw the
+// prompt followed by the in-progress input.
+func (c *conn) emit(s string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.raw(clrLine + s + c.prompt + string(c.inLine))
+}
+
+// setPrompt updates the prompt and redraws it with the current input.
+func (c *conn) setPrompt(p string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.prompt = p
+	c.raw(clrLine + c.prompt + string(c.inLine))
 }
 
 type lobby struct {
-	mu      sync.Mutex
-	players map[*player]struct{}
+	mu    sync.Mutex
+	conns map[*conn]struct{}
 }
 
-func (l *lobby) join(p *player)  { l.mu.Lock(); l.players[p] = struct{}{}; l.mu.Unlock() }
-func (l *lobby) leave(p *player) { l.mu.Lock(); delete(l.players, p); l.mu.Unlock() }
+func (l *lobby) join(c *conn)  { l.mu.Lock(); l.conns[c] = struct{}{}; l.mu.Unlock() }
+func (l *lobby) leave(c *conn) { l.mu.Lock(); delete(l.conns, c); l.mu.Unlock() }
 
 func (l *lobby) broadcast(msg string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for p := range l.players {
-		select {
-		case p.out <- msg: // non-blocking: never let one slow caller stall the rest
-		default:
-		}
+	for c := range l.conns {
+		c.emit(msg) // each caller's copy redraws around their own input
 	}
 }
 
@@ -55,8 +105,10 @@ func (l *lobby) names() []string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	var out []string
-	for p := range l.players {
-		out = append(out, p.name)
+	for c := range l.conns {
+		if c.name != "" {
+			out = append(out, c.name)
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -66,101 +118,132 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:4001", "TCP listen address for the BBS bridge")
 	flag.Parse()
 
-	l := &lobby{players: map[*player]struct{}{}}
+	l := &lobby{conns: map[*conn]struct{}{}}
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("resident door listening on %s", *addr)
+	log.Printf("resident door %s listening on %s", version, *addr)
+
+	// §2.5: on shutdown, tell connected callers, then exit. A real door would
+	// flush/persist here first, with a bounded wait so a stuck save can't hang.
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigc
+		l.broadcast("\r\n* server going down. NO CARRIER\r\n")
+		os.Exit(0)
+	}()
+
 	for {
-		c, err := ln.Accept()
+		nc, err := ln.Accept()
 		if err != nil {
 			continue
 		}
-		go serve(c, l)
+		go serve(nc, l)
 	}
 }
 
-func serve(c net.Conn, l *lobby) {
-	defer c.Close()
-	r := bufio.NewReader(c)
-	p := &player{out: make(chan string, 64)}
+func serve(nc net.Conn, l *lobby) {
+	defer nc.Close()
+	c := &conn{nc: nc, out: make(chan string, 128)}
 
-	// Writer goroutine: drains the player's output queue to the socket.
-	done := make(chan struct{})
+	// Writer goroutine: drains the output queue to the socket until it's closed.
 	go func() {
-		for {
-			select {
-			case s := <-p.out:
-				if _, err := c.Write([]byte(s)); err != nil {
-					return
-				}
-			case <-done:
+		for s := range c.out {
+			if _, err := nc.Write([]byte(s)); err != nil {
 				return
 			}
 		}
 	}()
 
-	c.Write([]byte("\r\nResident lobby. Enter your handle: "))
-	name, err := readLine(r)
-	if err != nil || strings.TrimSpace(name) == "" {
-		close(done)
+	r := bufio.NewReader(nc)
+
+	// §2.2: advertise our version as the VERY FIRST bytes (OSC-framed). The host
+	// strips it and shows it on the launch line; a terminal reached directly just
+	// swallows the sequence, so a raw nc/telnet session sees nothing.
+	c.raw("\x1b]ABBS;version=" + version + "\x07")
+
+	c.raw("\r\nResident lobby. Enter your handle: ")
+	name, ok := c.readLine(r)
+	if !ok || strings.TrimSpace(name) == "" {
+		close(c.out)
 		return
 	}
-	p.name = strings.TrimSpace(name)
-	l.join(p)
-	p.out <- fmt.Sprintf("Welcome, %s. Commands: say <msg>, who, quit.\r\n", p.name)
-	l.broadcast(fmt.Sprintf("* %s jacks in.\r\n", p.name))
+	c.name = strings.TrimSpace(name)
+	l.join(c)
+	c.emit(fmt.Sprintf("Welcome, %s. Commands: say <msg>, who, quit.\r\n", c.name))
+	l.broadcast(fmt.Sprintf("* %s jacks in.\r\n", c.name))
 
 	for {
-		p.out <- "> "
-		line, err := readLine(r)
-		if err != nil {
+		c.setPrompt("> ")
+		line, ok := c.readLine(r)
+		if !ok {
 			break // caller disconnected — exit cleanly
 		}
-		line = strings.TrimSpace(line)
-		switch {
+		switch line = strings.TrimSpace(line); {
 		case line == "quit":
-			p.out <- "NO CARRIER\r\n"
+			c.emit("NO CARRIER\r\n")
 			goto out
 		case line == "who":
-			p.out <- "Online: " + strings.Join(l.names(), ", ") + "\r\n"
+			c.emit("Online: " + strings.Join(l.names(), ", ") + "\r\n")
 		case strings.HasPrefix(line, "say "):
-			l.broadcast(fmt.Sprintf("%s: %s\r\n", p.name, strings.TrimPrefix(line, "say ")))
+			l.broadcast(fmt.Sprintf("%s: %s\r\n", c.name, strings.TrimPrefix(line, "say ")))
 		case line == "":
 		default:
-			p.out <- "Unknown. Try: say <msg>, who, quit.\r\n"
+			c.emit("Unknown. Try: say <msg>, who, quit.\r\n")
 		}
 	}
 out:
-	l.leave(p)
-	l.broadcast(fmt.Sprintf("* %s jacks out.\r\n", p.name))
-	close(done)
+	l.leave(c)
+	l.broadcast(fmt.Sprintf("* %s jacks out.\r\n", c.name))
+	close(c.out)
 }
 
-// readLine reads one line of raw terminal input, handling CR/LF and backspace.
-func readLine(r *bufio.Reader) (string, error) {
-	var b []byte
+// readLine reads one submitted line of RAW terminal input, implementing the
+// normative §2.3 input contract. It returns ok=false on disconnect. The
+// in-progress bytes live in c.inLine (mutex-guarded) so async emit()/setPrompt()
+// can redraw them without garbling.
+func (c *conn) readLine(r *bufio.Reader) (string, bool) {
 	for {
-		ch, err := r.ReadByte()
+		b, err := r.ReadByte()
 		if err != nil {
-			return string(b), err
+			return "", false
 		}
-		switch ch {
-		case '\r', '\n':
-			if ch == '\r' { // swallow a paired LF
-				if nb, e := r.ReadByte(); e == nil && nb != '\n' {
-					_ = r.UnreadByte()
+		switch {
+		case b == '\r' || b == '\n':
+			// Swallow a CRLF/LFCR partner ONLY if one is already buffered — never
+			// block waiting for it, or a lone-CR keystroke would hang.
+			if r.Buffered() > 0 {
+				if nb, e := r.ReadByte(); e == nil {
+					if !((b == '\r' && nb == '\n') || (b == '\n' && nb == '\r')) {
+						_ = r.UnreadByte()
+					}
 				}
 			}
-			return string(b), nil
-		case 0x08, 0x7f:
-			if len(b) > 0 {
-				b = b[:len(b)-1]
+			c.mu.Lock()
+			line := string(c.inLine)
+			c.inLine = c.inLine[:0]
+			c.raw("\r\n")
+			c.mu.Unlock()
+			return line, true
+		case b == 0x08 || b == 0x7f: // backspace / DEL
+			c.mu.Lock()
+			if len(c.inLine) > 0 {
+				c.inLine = c.inLine[:len(c.inLine)-1]
+				c.raw("\b \b") // erase the glyph on screen
 			}
+			c.mu.Unlock()
+		case b == 0x00:
+			// ignore NUL
+		case b == 0xff: // telnet IAC — discard it and the following command byte
+			_, _ = r.ReadByte()
 		default:
-			if ch >= 0x20 && ch < 0x7f {
-				b = append(b, ch)
+			if b >= 0x20 && b < 0x7f { // printable: buffer and echo
+				c.mu.Lock()
+				c.inLine = append(c.inLine, b)
+				c.raw(string(b))
+				c.mu.Unlock()
 			}
 		}
 	}
