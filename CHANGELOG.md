@@ -14,12 +14,22 @@ and this repo follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   format identifier rather than silently redefining behavior.
 
 > The **repo release version** (below) and the **normative spec version**
-> (`SPEC.md`, currently **v1.1**) are tracked separately: doc and clarification
+> (`SPEC.md`, currently **v1.3**) are tracked separately: doc and clarification
 > releases move the repo version without changing the v1 door contract.
 
 ## [Unreleased]
 
 _Nothing yet._
+
+## [1.3.0] - 2026-06-24
+
+Backward-compatible addition. Normative spec: **v1.3** (a v1.2 door stays conformant).
+
+### Added
+- **§2.2 caps + §2.2a host handle push.** The version handshake may carry a
+  `caps=<...>` list; a door advertising `caps=handle` gets the caller's handle
+  pushed back as a reciprocal `ESC ] ABBS;handle=<h> BEL` sentinel, so it can
+  default its name prompt to the BBS handle. Sent only to doors that ask.
 
 ## [1.2.0] - 2026-06-24
 
@@ -98,7 +108,8 @@ Initial public release of the door-game standard for
 - **`CONTRIBUTING.md`** — how to propose spec changes and example standards.
 - **MIT License** — commercial and closed-source doors are explicitly permitted.
 
-[Unreleased]: https://github.com/CryptoJones/ABBS-Door-Specification/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/CryptoJones/ABBS-Door-Specification/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.2.0
 [1.1.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.1.0
 [1.0.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.0.0
