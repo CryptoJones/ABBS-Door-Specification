@@ -1,4 +1,4 @@
-# ABBS Door Specification — v1
+# ABBS Door Specification — v1.1
 
 This is the normative contract for door games on AdmiralBBS. The key words
 **MUST**, **SHOULD**, and **MAY** are used in the usual sense.
@@ -38,7 +38,7 @@ inherited. Exactly these variables are provided:
 |---|---|
 | `PATH` | `/usr/bin:/bin` |
 | `HOME` | the per-session working directory |
-| `TERM` | the caller's terminal type (e.g. `ansi`) |
+| `TERM` | the caller's terminal type: `ansi` for an ANSI-capable caller, `dumb` otherwise (the host defaults it to `ansi` when none is given) |
 | `DOORFILE` | absolute path to this session's `door32.sys` dropfile |
 | `DOORSHARE` | *(optional)* absolute path to a per-door directory shared by all players — present only for multiplayer doors |
 
@@ -55,6 +55,14 @@ A door **MUST NOT** rely on any other inherited variable.
   files there (e.g. via lockfiles). Real-time multiplayer should use a
   *resident* door instead (§2).
 
+On the AdmiralBBS reference host the layout is concretely
+`<doors-data>/<slug>/node<N>/` for each node's working directory (`$HOME`, where
+`door32.sys` lives) and `<doors-data>/<slug>/shared/` for `$DOORSHARE`, where
+`<slug>` is the door name lowercased to `[a-z0-9-]`. A door launched with no
+working directory configured runs in a throwaway temp jail that is deleted on
+exit (no persistent state). Don't hardcode these paths — read `$HOME`,
+`$DOORFILE`, and `$DOORSHARE` — but this is the shape to expect when testing.
+
 ### 1.4 The `door32.sys` dropfile
 
 The BBS writes a standard **door32.sys** — 11 lines, CRLF-terminated — into the
@@ -70,7 +78,7 @@ working directory before launch. `$DOORFILE` points at it. The lines, in order:
 | 6 | User real name | falls back to the handle if unset |
 | 7 | **User handle / alias** | the caller's BBS handle |
 | 8 | Access level | integer |
-| 9 | Minutes left this session | integer; honor it |
+| 9 | Minutes left this session | integer; **advisory** — display it if you like, but the BBS enforces the caller's real time budget itself, so a door can't extend a session by ignoring or rewriting this value |
 | 10 | Terminal emulation | `0` = ASCII, `1` = ANSI |
 | 11 | **Node number** | unique per concurrent session |
 
@@ -105,11 +113,13 @@ share one live world — this is how real-time multiplayer works.
 ### 2.1 Connection contract
 
 - The BBS dials your `address` (see §6) with a connect timeout (default 10s) and
-  relays bytes verbatim: caller→server and server→caller. There is **no framing,
-  handshake, or added protocol** — it is a transparent byte pipe.
+  then relays bytes verbatim in both directions: caller→server and
+  server→caller. Apart from the **one optional version handshake** your server
+  may send first (§2.2), there is **no framing or added protocol** — the relay is
+  a transparent byte pipe.
 - Your server **MUST** drive its own terminal experience over that stream:
-  prompt for whatever identity/character it needs, do its own line editing
-  (raw input — handle CR/LF and backspace), and emit ANSI if it wants color.
+  prompt for whatever identity/character it needs, do its own raw line editing
+  and echo (§2.3), and emit ANSI if it wants color.
 - Your server **MUST** tolerate many simultaneous connections, connections that
   vanish without warning (caller hangup), and hostile input.
 - The BBS passes **no dropfile and no environment** to a resident door — it only
@@ -118,13 +128,99 @@ share one live world — this is how real-time multiplayer works.
 - Your server owns its own persistence, world state, and lifecycle. It starts
   and stops independently of the BBS.
 
-### 2.2 Recommended architecture
+### 2.2 Version handshake (optional)
+
+A resident door **MAY**, as the **very first bytes** it writes on an accepted
+connection — before any prompt or game output — advertise its version with a
+single OSC-framed string:
+
+```
+ESC ] ABBS;version=<version> BEL
+```
+
+that is, the bytes `0x1B 0x5D` (`ESC ]`), the literal ASCII `ABBS;version=`, your
+version string, then `0x07` (`BEL`). For example, version 1.0.0 is the bytes:
+
+```
+\x1b]ABBS;version=1.0.0\x07
+```
+
+Host behavior (AdmiralBBS reference):
+
+- The host reads the sentinel, **strips it from the stream** (the caller never
+  sees it), and **MAY** display the version — e.g. on the launch line:
+  `Launching Chrome Circuit Cowboys v1.0.0 (node 1)...`.
+- The host waits at most a short **handshake timeout** (1.5s) for it. A door that
+  sends nothing, or whose first bytes are not this exact sentinel, is treated as
+  having no handshake and **all** its bytes are relayed verbatim. Sending it is
+  **optional and never required**; the bridge works identically without it.
+- The host **sanitizes** the version before display — keeping only the characters
+  `[A-Za-z0-9.+-]`, truncated to 32 — so the handshake can never inject control
+  sequences into a caller's terminal. Keep your version string within that set.
+
+OSC framing is deliberate: a terminal that receives the sentinel directly (a door
+reached without a host) silently swallows it, so it never garbles a raw session.
+
+### 2.3 Input handling (normative)
+
+The relay is raw — there is no line discipline, and clients differ (SSH raw mode;
+assorted telnet clients). A resident door **MUST** handle input byte by byte.
+Specifically, a door **MUST**:
+
+- **Telnet IAC:** on byte `0xFF` (telnet IAC), consume it **and the following
+  byte** and ignore both. The host does **not** strip telnet negotiation for you;
+  a door that treats `0xFF` as input will corrupt on real telnet clients.
+- **Line submission:** treat CR (`0x0D`) **or** LF (`0x0A`) as "line entered."
+  Clients send lone CR, lone LF, CRLF, or LFCR. To collapse a pair without
+  hanging, peek **only if a byte is already buffered** (a non-blocking check) and
+  swallow it **only** when it is the CR↔LF partner of the byte you just read. A
+  door **MUST NOT** block waiting for a partner that may never come — a lone CR
+  from an interactive keystroke has to submit immediately. Echo a newline as
+  `\r\n`.
+- **Editing:** on backspace/DEL (`0x08` or `0x7F`), remove the last buffered
+  input byte (if any) and echo the 3-byte sequence `\b \b` (backspace, space,
+  backspace) to erase the glyph on screen.
+- **Printable range:** buffer and echo only bytes `0x20`–`0x7E`. Silently
+  **ignore** NUL (`0x00`) and any other control byte you don't specifically
+  handle.
+
+### 2.4 Keeping the prompt readable under async output (recommended)
+
+A real-time multiplayer door emits output the caller didn't trigger — combat
+ticks, chat, other players' actions — while the caller is mid-type. A door
+**SHOULD** redraw rather than clobber the input line. The pattern the reference
+door uses:
+
+- Keep, per connection, the caller's **in-progress (un-submitted) input** and the
+  **current status prompt**, guarded by a mutex so output can't interleave with
+  input echo.
+- To print async content, write `\r\x1b[K` (CR + ESC`[K` — return to column 0 and
+  erase the line), then the content, then **redraw** the prompt followed by the
+  buffered input. The caller sees the new line appear *above* an intact,
+  still-editable prompt.
+- Re-show the prompt on state changes (e.g. HP) and, on each world tick, **only
+  for connections that received output that tick**, so idle callers don't get a
+  repeating prompt.
+
+Skipping this isn't a protocol violation, but multiplayer output will visibly
+scramble whatever the caller is typing.
+
+### 2.5 Graceful shutdown (recommended)
+
+A resident door owns its own lifecycle. On `SIGINT`/`SIGTERM` (e.g. a
+`systemctl restart`) a door **SHOULD** flush/persist connected players' state
+before exiting, with a **bounded** wait so a stuck save can't hang shutdown
+forever (the reference door waits up to 5s, then exits). The BBS persists nothing
+for you (§3.2).
+
+### 2.6 Recommended architecture
 
 Serialize all shared-world mutation (a single goroutine/thread consuming a
 command queue plus a timer "tick") so the core logic needs no locks and stays
 deterministic and testable; keep network I/O at the edges. The reference
-implementation, **Console Cowboy 2026** (`src/game/cowboy` + `src/cmd/cowboy` in
-the AdmiralBBS repo), follows exactly this shape and is a good model to copy.
+implementation, **Chrome Circuit Cowboys** (its own repo,
+<https://github.com/CryptoJones/ChromeCircuitCowboys>), follows exactly this
+shape and is a good model to copy.
 
 ---
 
@@ -176,9 +272,10 @@ A resident door is a long-lived server (§2), so it simply **keeps its own
 state** — typically the world in memory plus a database or files it owns
 entirely. The BBS only relays bytes; it passes no dropfile and persists nothing
 for you. Persist on a cadence that fits your game (e.g. save each character on
-logout/disconnect and/or periodically). The reference resident door, **Console
-Cowboy 2026**, uses its **own SQLite database**, separate from the BBS database,
-and saves a character when they disconnect.
+logout/disconnect and/or periodically). The reference resident door, **Chrome
+Circuit Cowboys**, uses its **own SQLite database**, separate from the BBS
+database, and saves a character when they disconnect (and flushes everyone on
+shutdown, §2.5).
 
 Resident persistence has no cross-process locking problem (one server owns all
 the state), but you **MUST** still serialize access *within* your process — the
@@ -280,11 +377,30 @@ or an operator wires one at startup. Each door record carries:
 
 Doors are gated by `min_access_level`: a caller below it never sees the door.
 
+On the AdmiralBBS reference host, an operator wires a **resident** door at
+startup with a repeatable flag encoding that data model as
+`name|network|address|minlevel`:
+
+```
+admiralbbs -door "Chrome Circuit Cowboys|tcp|127.0.0.1:4000|0"
+```
+
+`minlevel` is optional (defaults to 0). The flag is repeatable to register
+several doors, and registration is idempotent on `name`. Subprocess-door
+sandbox hardening (§1.5) is configured host-wide, not per door, via
+`-door-uid`, `-door-gid`, `-door-chroot`, `-door-no-network`, and
+`-door-isolate`. (These flags are AdmiralBBS-specific; other hosts may register
+the same data model however they like.)
+
 ## 7. Versioning
 
-This is **v1**. Additions will be backward compatible where possible; the
-dropfile is fixed at 11 lines for v1 and new fields, if any, will be appended in
-a later version behind a new format identifier.
+This is **v1.1**. v1.1 is backward compatible with v1: it adds the optional
+resident-door version handshake (§2.2), writes down the resident-door input
+contract that was previously "copy the reference" (§2.3–§2.5), and documents
+host defaults (TERM, working-dir layout) — no existing field changed meaning. A
+v1 door remains conformant. The `door32.sys` dropfile is still fixed at 11 lines;
+new fields, if any, will be appended in a later version behind a new format
+identifier.
 
 ---
 *Proudly Made in Nebraska. Go Big Red! 🌽 <https://xkcd.com/2347/>*
