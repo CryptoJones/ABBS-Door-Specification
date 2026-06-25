@@ -21,6 +21,17 @@ and this repo follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 _Nothing yet._
 
+## [1.2.0] - 2026-06-24
+
+Backward-compatible addition. Normative spec: **v1.2** (a v1.1 door stays conformant).
+
+### Added
+- **§2.7 Release-install convention** — how a host installs a resident door from a
+  forge release URL: the door accepts `-addr host:port`, and the release publishes
+  a per-platform binary asset (OS+arch tokens) so the host picks the one for its
+  own machine — no OS is second-class. Backed by AdmiralBBS's SysOp "Install door
+  from release URL" panel (AdmiralBBS v2.0.2).
+
 ## [1.1.0] - 2026-06-24
 
 Backward-compatible additions derived from the live AdmiralBBS + Chrome Circuit
@@ -87,6 +98,7 @@ Initial public release of the door-game standard for
 - **`CONTRIBUTING.md`** — how to propose spec changes and example standards.
 - **MIT License** — commercial and closed-source doors are explicitly permitted.
 
-[Unreleased]: https://github.com/CryptoJones/ABBS-Door-Specification/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/CryptoJones/ABBS-Door-Specification/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.2.0
 [1.1.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.1.0
 [1.0.0]: https://github.com/CryptoJones/ABBS-Door-Specification/releases/tag/v1.0.0

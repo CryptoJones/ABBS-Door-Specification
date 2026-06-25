@@ -1,4 +1,4 @@
-# ABBS Door Specification — v1.1
+# ABBS Door Specification — v1.2
 
 This is the normative contract for door games on AdmiralBBS. The key words
 **MUST**, **SHOULD**, and **MAY** are used in the usual sense.
@@ -222,6 +222,31 @@ implementation, **Chrome Circuit Cowboys** (its own repo,
 <https://github.com/CryptoJones/ChromeCircuitCowboys>), follows exactly this
 shape and is a good model to copy.
 
+### 2.7 Release-install convention (optional)
+
+A host MAY let an operator install a resident door by pointing it at a forge
+**release URL** — the host downloads the binary, runs it under supervision, and
+registers the bridge automatically (AdmiralBBS does this from the SysOp panel).
+To be installable this way, a door **MUST**:
+
+- **Accept `-addr host:port`** and listen on exactly that address. The host picks
+  a free localhost port and launches the door as `<binary> -addr 127.0.0.1:<port>`
+  with the working directory set to a per-door data dir (persist relative to the
+  cwd, or accept your own flags with sane defaults). This `-addr` flag is the
+  only launch contract the host relies on.
+- **Publish a binary asset per platform** on the release, named with OS and arch
+  tokens so the host can pick the one matching its **own** machine — **no OS is
+  second-class**. Recommended tokens (case-insensitive, with common aliases):
+  OS `linux` / `windows` (`win`) / `darwin` (`macos`); arch `amd64` (`x86_64`) /
+  `arm64` (`aarch64`). Examples: `mydoor-linux-amd64`,
+  `mydoor-windows-amd64.exe`, `mydoor-darwin-arm64`.
+
+The release JSON must expose `tag_name` and `assets[].browser_download_url` — the
+shape GitHub, Codeberg, and Forgejo all return (the same forge-agnostic shape the
+update check uses). A door that doesn't publish per-platform assets, or doesn't
+take `-addr`, can still be installed the manual way (operator runs it and
+registers the bridge by hand); this convention only enables the one-click path.
+
 ---
 
 ## 3. Saving state
@@ -394,13 +419,12 @@ the same data model however they like.)
 
 ## 7. Versioning
 
-This is **v1.1**. v1.1 is backward compatible with v1: it adds the optional
-resident-door version handshake (§2.2), writes down the resident-door input
-contract that was previously "copy the reference" (§2.3–§2.5), and documents
-host defaults (TERM, working-dir layout) — no existing field changed meaning. A
-v1 door remains conformant. The `door32.sys` dropfile is still fixed at 11 lines;
-new fields, if any, will be appended in a later version behind a new format
-identifier.
+This is **v1.2**. Each minor is backward compatible: v1.1 added the optional
+resident-door version handshake (§2.2) and wrote down the resident-door input
+contract (§2.3–§2.5); v1.2 adds the optional release-install convention (§2.7).
+No existing field changed meaning, so a v1 door remains conformant. The
+`door32.sys` dropfile is still fixed at 11 lines; new fields, if any, will be
+appended in a later version behind a new format identifier.
 
 ---
 *Proudly Made in Nebraska. Go Big Red! 🌽 <https://xkcd.com/2347/>*
