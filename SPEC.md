@@ -1,4 +1,4 @@
-# ABBS Door Specification — v1.2
+# ABBS Door Specification — v1.3
 
 This is the normative contract for door games on AdmiralBBS. The key words
 **MUST**, **SHOULD**, and **MAY** are used in the usual sense.
@@ -449,10 +449,12 @@ the same data model however they like.)
 
 ## 7. Versioning
 
-This is **v1.2**. Each minor is backward compatible: v1.1 added the optional
+This is **v1.3**. Each minor is backward compatible: v1.1 added the optional
 resident-door version handshake (§2.2) and wrote down the resident-door input
-contract (§2.3–§2.5); v1.2 adds the optional release-install convention (§2.7).
-No existing field changed meaning, so a v1 door remains conformant. The
+contract (§2.3–§2.5); v1.2 added the optional release-install convention (§2.7);
+v1.3 adds the handshake `caps` list and the optional host handle push
+(§2.2 / §2.2a). No existing field changed meaning, so a v1 door remains
+conformant. The
 `door32.sys` dropfile is still fixed at 11 lines; new fields, if any, will be
 appended in a later version behind a new format identifier.
 
