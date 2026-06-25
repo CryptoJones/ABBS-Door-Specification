@@ -9,6 +9,10 @@ A "door" is an external program the BBS hands a caller off to: a game, a utility
 a chat — anything. This repo is the developer contract. Build to it in **any
 language** and your door will run on any AdmiralBBS node.
 
+**Built a door to this spec?** Get it added to the AdmiralBBS
+[**Available door games**](https://github.com/CryptoJones/AdmiralBBS#available-door-games)
+directory.
+
 > ⚠️ **A door is a text-mode terminal program, not a GUI app.** Its only
 > interface is a stream of bytes to and from the caller's **VT100/ANSI terminal
 > emulator** (over SSH/Telnet). You read keystrokes and write characters and ANSI
