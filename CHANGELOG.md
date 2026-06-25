@@ -19,7 +19,11 @@ and this repo follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **§2.2 caps + §2.2a host handle push.** The version handshake may carry a
+  `caps=<...>` list; a door advertising `caps=handle` gets the caller's handle
+  pushed back as a reciprocal `ESC ] ABBS;handle=<h> BEL` sentinel, so it can
+  default its name prompt to the BBS handle. Sent only to doors that ask.
 
 ## [1.2.0] - 2026-06-24
 

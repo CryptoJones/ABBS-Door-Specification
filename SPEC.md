@@ -161,6 +161,36 @@ Host behavior (AdmiralBBS reference):
 OSC framing is deliberate: a terminal that receives the sentinel directly (a door
 reached without a host) silently swallows it, so it never garbles a raw session.
 
+The handshake payload is a `;`-separated list of `key=value` fields. `version` is
+one; a door **MAY** also advertise capabilities it wants the host to act on:
+
+```
+ESC ] ABBS;version=<version>;caps=<cap,cap,...> BEL
+```
+
+Unknown keys/caps are ignored. The only capability defined today is `handle`
+(§2.2a).
+
+### 2.2a Host handle push (capability: `handle`)
+
+A door that advertises **`caps=handle`** in its handshake (§2.2) is telling the
+host it wants the caller's handle. The host responds by writing, as the next
+bytes back **to the door**, a reciprocal OSC sentinel:
+
+```
+ESC ] ABBS;handle=<handle> BEL
+```
+
+The door reads and strips it (a short, non-blocking peek), and uses the handle
+however it likes — e.g. to default its own name prompt (`Handle [name] (Enter to
+use):`). Notes:
+
+- The host sends this **only** to doors that advertised the `handle` capability,
+  so it never injects bytes a door isn't expecting.
+- The host **sanitizes** the handle to `[A-Za-z0-9_.-]` (≤24 chars).
+- A door that asked for it but receives nothing within a short window (a host
+  that doesn't support the push) **MUST** fall back to prompting normally.
+
 ### 2.3 Input handling (normative)
 
 The relay is raw — there is no line discipline, and clients differ (SSH raw mode;
