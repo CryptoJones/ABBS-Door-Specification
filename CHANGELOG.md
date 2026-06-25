@@ -19,7 +19,12 @@ and this repo follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **§2.7 Release-install convention** — how a host installs a resident door from a
+  forge release URL: the door accepts `-addr host:port`, and the release publishes
+  a per-platform binary asset (OS+arch tokens) so the host picks the one for its
+  own machine — no OS is second-class. Backed by AdmiralBBS's SysOp "Install door
+  from release URL" panel.
 
 ## [1.1.0] - 2026-06-24
 
